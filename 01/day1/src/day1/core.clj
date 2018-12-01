@@ -1,3 +1,4 @@
+;;; https://adventofcode.com/2018/day/1
 (ns day1.core
   (:require [clojure.string :as str]))
 
