@@ -1,7 +1,6 @@
 (ns day1.core
   (:require [clojure.string :as str]))
 
-
 (def n (map #(Integer. %)
             (str/split-lines (slurp "/home/edd/work/github/aoc-2018/01/day1/puzzle.txt"))))
 
