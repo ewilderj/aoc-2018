@@ -19,12 +19,11 @@
 ;;; to find the nth solution easily, by filtering for the final
 ;;; tuple of the iteration to have length n
 
-(defn seen-step [[l s r]]
+(defn seen-step [[l s r]] ; one step of (list seen duplicates)
   (let [v (first l)]
     (if (contains? s v)
       (list (rest l) s (conj r v))
-      (list (rest l) (conj s v) r)
-  )))
+      (list (rest l) (conj s v) r))))
 
 (def part2-lazy
   (first (last (first
