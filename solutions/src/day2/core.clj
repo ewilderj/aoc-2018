@@ -24,9 +24,9 @@
 (defn diff-count [[x y]] (count (set/difference (positions x) (positions y))))
 
 (defn find-answer [l]
-  (let [p (pairwise-perms l)
-        [c1 c2] ((zipmap (map diff-count p) p) 1)
-        c (first (set/difference (set (vec c1)) (set (vec c2))))]
-    (str/replace c1 (str c) "")))
+  (let [p (pairwise-perms l)                  ; every code combo
+        s ((zipmap (map diff-count p) p) 1)   ; the pair with one diff
+        c (apply set/difference (map set s))] ; the differing char
+    (apply str (remove c (first s)))))        ; remove it from the code
 
 (def part2 (find-answer d)) ; fvstwblgqkhpuixdrnevmaycd
