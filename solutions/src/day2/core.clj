@@ -30,3 +30,21 @@
     (apply str (remove c (first s)))))        ; remove it from the code
 
 (def part2 (find-answer d)) ; fvstwblgqkhpuixdrnevmaycd
+
+;;; this is a fast version that uses lazy evaluation, and
+;;; stops searching when we find the first pair of codes
+;;; that's got only one difference
+;;; 2.9 seconds vs 4.3 seconds for the original
+
+(defn faster-answer [l]
+  (let [s (->> l
+               (pairwise-perms)               ; every code combo
+               (#(interleave (map diff-count %) %))
+               (partition 2)
+               (filter (fn [[n p]] (= n 1)))
+               (first)
+               (last))                        ; the pair with one diff
+        c (apply set/difference (map set s))] ; the differing char
+    (apply str (remove c (first s)))))        ; remove it from the code
+
+
