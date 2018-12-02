@@ -20,7 +20,7 @@
       (if (empty? n) a
           (recur n (concat a (partition 2 (interleave (repeat m) n))))))))
 
-(defn positions [s] (set (partition 2 (interleave (range) s))))
+(defn positions [s] (set (map-indexed list s)))
 (defn diff-count [[x y]] (count (set/difference (positions x) (positions y))))
 
 (defn find-answer [l]
