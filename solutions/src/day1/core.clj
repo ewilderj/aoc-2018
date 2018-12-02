@@ -1,9 +1,9 @@
 ;;; https://adventofcode.com/2018/day/1
 (ns day1.core
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [aoc.core :as aoc]))
 
-(def n (map #(Integer. %)
-            (str/split-lines (slurp "/home/edd/work/github/aoc-2018/01/day1/puzzle.txt"))))
+(def n (aoc/puzzle-ints "day1"))
 
 (def part1 (reduce + n)) ; 520
 
