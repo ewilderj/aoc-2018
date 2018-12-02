@@ -1,7 +1,6 @@
 ;;; https://adventofcode.com/2018/day/1
 (ns day1.core
-  (:require [clojure.string :as str]
-            [aoc.core :as aoc]))
+  (:require [aoc.core :as aoc]))
 
 (def n (aoc/puzzle-ints "day1"))
 
