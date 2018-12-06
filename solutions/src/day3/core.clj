@@ -28,10 +28,11 @@
 (defn part2 []
   (get (set/map-invert
         (loop [claims (vals (draw-all d)) counts {}]
-    (if (empty? claims)
-      counts
-      (recur
-       (rest cls)
-       (into counts (for [c (first claims)]
-                      [c (max (get counts c 0) (count (first claims)))]))))))
+          (if (empty? claims)
+            counts
+            (recur
+             (rest cls)
+             (into counts (for [c (first claims)]
+                            [c (max (get counts c 0) (count (first claims)))]
+                            ))))))
        1))
