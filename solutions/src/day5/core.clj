@@ -5,20 +5,18 @@
 (def inp (first (aoc/puzzle-lines "day5")))
 
 (defn ok-pair? [a b]
-  (not (= 32 (Math/abs (- (int a) (int b))))))
+  (or (nil? a) (nil? b)
+      (not (= 32 (Math/abs (- (int a) (int b)))))))
 
 (defn process [d]
-  (loop [l (vec d) nl []]
-    (if (empty? (rest l)) (concat nl l)
-        (if (ok-pair? (first l) (second l))
-          (recur (rest l) (conj nl (first l)))
-          (recur (drop 2 l) nl)
-          ))))
+  "Treat problem as a stack, popping off a destroyed polymer"
+  (loop [ps (vec d) op (list)]
+    (if (empty? ps) op
+        (if (ok-pair? (first op) (first ps))
+          (recur (rest ps) (cons (first ps) op))
+          (recur (rest ps) (rest op))))))
 
-(defn part1 [d]
-  (count (apply str (loop [od d]
-    (let [nd (process od)]
-      (if (= od nd) od (recur nd)))))))
+(defn part1 [d] (count (process d)))
 
 (def alphabet [\A \B \C \D \E \F \G \H \I \J \K \L \M
                \N \O \P \Q \R \S \T \U \V \W \X \Y \Z])
