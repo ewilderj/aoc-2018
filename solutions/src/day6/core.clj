@@ -2,12 +2,7 @@
   (:require [aoc.core :as aoc] [clojure.string :as str]
             [clojure.set :as set]))
 
-(def t [[1 1]
-        [1 6]
-        [8 3]
-        [3 4]
-        [5 5]
-        [8 9]])
+(def test-data [[1 1] [1 6] [8 3] [3 4] [5 5] [8 9]])
 
 (def inp (for [l (aoc/puzzle-lines "day6")]
            (map #(Integer. %) (str/split l #",\s+"))))
@@ -44,15 +39,13 @@
        (interleave (range))
        (partition 2)
        (filter #(not (disqualify? b (second %))))
-       (map first)
-       )))
+       (map first))))
 
 (defn explore [d]
   (let [[[x1 y1] [x2 y2]] (bounding d)]
     (for [x (range x1 (inc x2))]
       (for [y (range y1 (inc y2))]
-        [[x y] (nearest x y d)]
-        ))))
+        [[x y] (nearest x y d)]))))
 
 (defn part1 [d]
   (let [f (->> d
@@ -70,9 +63,8 @@
 (defn explore2 [m d]
   (let [[[x1 y1] [x2 y2]] (bounding d)]
     (for [x (range x1 (inc x2))]
-      (do (println "x" x)
-          (for [y (range y1 (inc y2))]
-            [[x y] (sumdist x y d m)])))))
+      (for [y (range y1 (inc y2))]
+        [[x y] (sumdist x y d m)]))))
 
 (defn part2 [d m]
   (->> d
