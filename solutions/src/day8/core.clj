@@ -23,12 +23,10 @@
 
 (defn build-tree [v]
   (if (some? v)
-    (let [cn (first v)                               ; no. of kids
-          mn (second v)                              ; no. of metadata
-          tape (drop 2 v)                            ; rest of data
-          [ntape nmeta] (process-kids cn tape)]      ; process our children
-      [(drop mn ntape) [(take mn ntape) nmeta]])     ; ret [tape, metadata, child-metadata]
-    [[] []]))                                        ; base case, nothing to do
+    (let [mn (second v)                                 ; no. of metadata
+          [nv res] (process-kids (first v) (drop 2 v))] ; process our children
+      [(drop mn nv) [(take mn nv) res]])                ; ret [inp [metadata, child-metadata]]
+    [[] []]))                                           ; base case, nothing to do
 
 
 ;; part1 - we don't need structure, just add the numbers
