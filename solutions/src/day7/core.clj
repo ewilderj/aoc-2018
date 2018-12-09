@@ -54,17 +54,15 @@ Step F must be finished before step E can begin.
           (if (empty? a) w
               (recur (conj w (recv-move (first a)))))))))
 
-(defn clock-tick [w m]
+(defn clock-tick [w m t]
   (let [nw (for [[tw tt] w] [tw (dec tt)])
         d (map first (filter #(= 0 (second %)) nw))
         rw (filter #(> (second %) 0) nw)]
-    [rw (concat m d)]))
+    [rw (concat m d) (inc t)]))
 
 (defn machine [v]
-  (loop [w [] m [] t 0]
+  (loop [[w m t] [[] [] 0]]
     (let [tw (fill-workers w v m)]
-      (if (empty? tw) t
-          (let [[nw nm] (clock-tick tw m)]
-            (recur nw nm (inc t)))))))
+      (if (empty? tw) t (recur (clock-tick tw m t))))))
 
 (def part2 (machine inp)) ; 1133
