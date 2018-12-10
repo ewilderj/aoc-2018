@@ -23,7 +23,7 @@
 
 (defn build-tree [v]
   (if (some? v)
-    (let [mn (second v)                                 ; no. of metadata
+    (let [mn (second v)                                 ; No. of metadata
           [nv res] (process-kids (first v) (drop 2 v))] ; process our children
       [(drop mn nv) [(take mn nv) res]])                ; ret [inp [metadata, child-metadata]]
     [[] []]))                                           ; base case, nothing to do
