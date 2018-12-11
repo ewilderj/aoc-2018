@@ -22,7 +22,8 @@
           ;; normal move
             (do ; (println "p#" (inc pn) "l" l "m" m(defn rotate [v]
               (recur
-               (rotate (into [m] l))
+               ;;    (rotate (into [m] l))
+               (conj (subvec l 1) m (first l))
                (inc m) scores)
             ))
         ))
@@ -30,7 +31,3 @@
 
 ;; 410 players, marble 72059 -> 429287
 ;; 410 players, marble 7205900 -> ?????
-
-
-
-
