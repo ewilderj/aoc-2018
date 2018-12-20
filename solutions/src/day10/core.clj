@@ -12,7 +12,7 @@
 
 (defn bounding [l]
   (let [xs (map first l) ys (map second l)]
-    [(apply min xs) (apply max xs) (apply min ys) (apply max ys)]))
+    [(apply min xs) (apply min ys) (apply max xs) (apply max ys)]))
 
 (defn field-size [l]
   (let [[x1 y1 x2 y2] (bounding l)]
