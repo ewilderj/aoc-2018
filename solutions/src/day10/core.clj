@@ -33,7 +33,7 @@
          size (field-size pos) iter 0]
     (let [npos (update-pos pos vel) nsize (field-size npos)]
       (if (> nsize size) ;; we're done when the field stops contracting
-        (println "in" iter "seconds...\n" (visualize pos))
+        (do (println "in" iter "seconds..." ) (print (visualize pos)))
         (recur npos vel nsize (inc iter))))))
 
 ;; both parts can be solved by running (play inp)
