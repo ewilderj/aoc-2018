@@ -15,24 +15,30 @@
       (power x y srl))))
 
 (defn score3 [[x y] srl]
-  (reduce + (flatten (cluster x y 3 srl))))
-
-(defn score [[x y z] srl]
-  (reduce + (flatten (cluster x y z srl))))
+  (reduce + (for [y (range y (+ 3 y))]
+            (reduce + (for [x (range x (+ 3 x))]
+                        (power x y srl))))))
 
 (defn part1 [srl]
   (let [g (apply concat
                  (for [y (range 1 298)]
                    (for [x (range 1 298)] [x y])))
-        s (into {} (zipmap g (map #(score3 % srl) g)))]
+        s (zipmap g (map #(score3 % srl) g))]
     (first (apply max-key val s))))
+
+;; part2 follows
+
+(defn score [[x y z] srl]
+  (reduce + (for [y (range y (+ z y))]
+              (reduce + (for [x (range x (+ z x))]
+                          (power x y srl))))))
 
 ;; find the best square size for any x y pair
 ;; limited to 3-20
 (defn best-score [[x y] srl]
   (let [max-size (min 20 (- 301 (max x y)))
         g (for [z (range 3 (inc max-size))] [x y z])
-        s (into {} (zipmap g (map #(score % srl) g)))]
+        s (zipmap g (map #(score % srl) g))]
     (apply max-key val s)))
 
 ;; I decided only to search squares 3-20 in dimension
