@@ -39,8 +39,8 @@
 (def r-left  {\^ \<, \< \v, \v \>, \> \^})
 (def r-right {\^ \>, \> \v, \v \<, \< \^})
 
-;; coord deltas per direction
-(def dxy {\^ [0 -1], \< [-1 0], \v [0 1], \> [1 0]})
+;; coord deltas per direction, add \C for crashed (goes nowhere)
+(def dxy {\^ [0 -1], \< [-1 0], \v [0 1], \> [1 0], \C [0 0]})
 
 ;; given a direction d and heading c, return next c
 (defn turn [d c]
@@ -58,24 +58,27 @@
       [(turn turndir heading) (next-dir turndir)]
       (if (#{\- \|} npos)
         [heading turndir]
-        (println "PROBLEM, next position is" npos)))))
+        (println "PROBLEM" npos)))))           ;; last only useful when debugging
 
 (defn move-cart [roads cart]
-  (let [[xy heading turndir] cart
-        [nx ny] (mapv + xy (dxy heading))
-        npos (get-in roads [ny nx])
-        [nh nt] (turn-or-steer npos cart)]
-    ;; (println "cart" cart "new pos" nx ny "where there is" npos "nh" nh "nt" nt)
-    [[nx ny] nh nt]))
+  (if (= (second cart) \C) cart                ;; ignore crashed cart, it gets removed
+      (let [[xy heading turndir] cart          ;; else compute next coords, heading, etc.
+            [nx ny] (mapv + xy (dxy heading))
+            npos (get-in roads [ny nx])
+            [nh nt] (turn-or-steer npos cart)]
+        [[nx ny] nh nt])))
+
+;; crash at a non-unique set of coordinates
+(defn crash-coordinates [carts]
+  (map first (filter #(> (val %) 1) (frequencies (map first carts)))))
 
 ;; for every cart, move it, and stop if we find a crash
 (defn move-carts [roads carts]
   (loop [i 0 carts carts crash []]
     (if (or (seq crash) (>= i (count carts)))
       [carts crash]
-      (let [ncarts (assoc-in carts [i] (move-cart roads (get carts i)))
-            cf (filter #(> (val %) 1) (frequencies (map first ncarts)))]
-        (recur (inc i) ncarts (concat crash cf))))))
+      (let [ncarts (assoc-in carts [i] (move-cart roads (get carts i)))]
+        (recur (inc i) ncarts (concat crash (crash-coordinates ncarts)))))))
 
 ;; sort cart array to ensure evaluation order is correct (y then x)
 (defn cart-sort [v]
@@ -87,29 +90,38 @@
 ;; keep ticking the clock til we find a crash
 (defn play [i]
   (let [[roads carts] (parse-inp i)]
-    (loop [tick 0 carts (vec carts) crash []]
-      (if (or (seq crash) (> tick 2000))
-        (ffirst crash)
+    (loop [carts (vec carts) crash []]
+      (if (seq crash)
+        (first crash)
         (let [[ncarts ncrash] (move-carts roads carts)]
-          (recur (inc tick) (cart-sort ncarts) ncrash))))))
+          (recur (cart-sort ncarts) ncrash))))))
 
 ;; part1: (play inp) => [41 22]
- 
+
+;; part2 strategy - we flag crashed carts as we go through
+;; and remove them after the end of each turn
+
+(defn flag-crashed [xy carts]
+  (vec (map #(if (= xy (first %)) [[-100 -100] \C :crashed] %) carts)))
+
+(defn remove-crashed [carts]
+  (vec (filter #(not (= \C (second %))) carts)))
+
 (defn move-carts2 [roads carts]
-  (loop [i 0 carts carts crash []]
-    (if (or (seq crash) (>= i (count carts)))
-      [carts crash]
+  (loop [i 0 carts carts]
+    (if (>= i (count carts))
+      (remove-crashed carts)
       (let [ncarts (assoc-in carts [i] (move-cart roads (get carts i)))
-            cf (filter #(> (val %) 1) (frequencies (map first ncarts)))]
-        (recur (inc i) ncarts (concat crash cf))))))
+            coords (crash-coordinates (remove-crashed ncarts))]
+        (if (seq coords)
+          (recur (inc i) (flag-crashed (first coords) ncarts))
+          (recur (inc i) ncarts))))))
 
 (defn play2 [i]
   (let [[roads carts] (parse-inp i)]
-    (loop [tick 0 carts (cart-sort (vec carts)) crash []]
-      (println "tick" tick "carts" carts)
-      (if (or (seq crash) (> tick 2000))
-        crash
-        (let [[ncarts ncrash] (move-carts roads carts)]
-          (recur (inc tick) (cart-sort ncarts) ncrash)
-          ))
-      )))
+    (loop [carts (cart-sort (vec carts))]
+      (if (= 1 (count carts))
+        (ffirst carts)
+        (recur (cart-sort (move-carts2 roads carts)))))))
+
+;; part2: (play2 inp) => [84 90]
