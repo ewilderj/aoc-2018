@@ -51,20 +51,18 @@
 
 ;; figure out what to do for next road piece
 (defn turn-or-steer [npos [xy heading turndir]]
-  (if (#{\\ \/} npos)
-    [(get-in steer [npos heading]) turndir]
-    (if (= \+ npos)
-      [(turn turndir heading) (next-dir turndir)]
-      (if (#{\- \|} npos)
-        [heading turndir]
-        (println "PROBLEM" npos)))))           ;; last only useful when debugging
+  (cond
+    (#{\\ \/} npos) [(get-in steer [npos heading]) turndir]
+    (= \+ npos)     [(turn turndir heading) (next-dir turndir)]
+    (#{\- \|} npos) [heading turndir]
+    :else (throw (Exception. (str npos)))))
 
 (defn move-cart [roads cart]
   (if (= (second cart) \C) cart                ;; ignore crashed cart, it gets removed
       (let [[xy heading turndir] cart          ;; else compute next coords, heading, etc.
-            [nx ny] (mapv + xy (dxy heading))
-            npos (get-in roads [ny nx])
-            [nh nt] (turn-or-steer npos cart)]
+            [nx ny] (mapv + xy (dxy heading))  ;; < new coordinates
+            npos    (get-in roads [ny nx])     ;; < what road is there?
+            [nh nt] (turn-or-steer npos cart)] ;; < take appropriate action
         [[nx ny] nh nt])))
 
 ;; crash at a non-unique set of coordinates
@@ -118,7 +116,7 @@
 
 (defn play2 [i]
   (let [[roads carts] (parse-inp i)]
-    (loop [carts (cart-sort (vec carts))]
+    (loop [carts (vec carts)]
       (if (= 1 (count carts))
         (ffirst carts)
         (recur (cart-sort (move-carts2 roads carts)))))))
