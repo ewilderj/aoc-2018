@@ -2,7 +2,6 @@
   (:require [aoc.core :as aoc] [clojure.string :as str]
             [clojure.set :as set]))
 
-(def inp (aoc/puzzle-lines "day13-example"))
 (def inp (aoc/puzzle-lines "day13"))
 
 ;; turn cart into the direction line it was on
