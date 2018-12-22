@@ -29,7 +29,6 @@
       (let [[l c] (parse-line (first i) y)]
         (recur (rest i) (concat carts c) (conj r l) (inc y))))))
 
-
 ;; map for turning direction, e.g. (get-in steer [\\ \>]) ==> \v 
 (def steer {\/ { \^ \>, \< \v, \> \^, \v \< }
             \\ { \^ \<, \< \^, \> \v, \v \> }})
@@ -59,11 +58,10 @@
 
 (defn move-cart [roads cart]
   (if (= (second cart) \C) cart                ;; ignore crashed cart, it gets removed
-      (let [[xy heading turndir] cart          ;; else compute next coords, heading, etc.
-            [nx ny] (mapv + xy (dxy heading))  ;; < new coordinates
-            npos    (get-in roads [ny nx])     ;; < what road is there?
-            [nh nt] (turn-or-steer npos cart)] ;; < take appropriate action
-        [[nx ny] nh nt])))
+      (let [[nx ny] (mapv + (first cart) (dxy (second cart)))  ;; < new coordinates
+            npos    (get-in roads [ny nx])     ;; what road is there?
+            [nh nt] (turn-or-steer npos cart)] ;; take appropriate action
+        [[nx ny] nh nt])))                     ;; return new cart state
 
 ;; crash at a non-unique set of coordinates
 (defn crash-coordinates [carts]
@@ -72,10 +70,9 @@
 ;; for every cart, move it, and stop if we find a crash
 (defn move-carts [roads carts]
   (loop [i 0 carts carts crash []]
-    (if (or (seq crash) (>= i (count carts)))
-      [carts crash]
-      (let [ncarts (assoc-in carts [i] (move-cart roads (get carts i)))]
-        (recur (inc i) ncarts (concat crash (crash-coordinates ncarts)))))))
+    (if (or (seq crash) (>= i (count carts))) [carts crash]
+        (let [ncarts (assoc-in carts [i] (move-cart roads (get carts i)))]
+          (recur (inc i) ncarts (concat crash (crash-coordinates ncarts)))))))
 
 ;; sort cart array to ensure evaluation order is correct (y then x)
 (defn cart-sort [v]
@@ -88,10 +85,9 @@
 (defn play [i]
   (let [[roads carts] (parse-inp i)]
     (loop [carts (vec carts) crash []]
-      (if (seq crash)
-        (first crash)
-        (let [[ncarts ncrash] (move-carts roads carts)]
-          (recur (cart-sort ncarts) ncrash))))))
+      (if (seq crash) (first crash)
+          (let [[ncarts ncrash] (move-carts roads carts)]
+            (recur (cart-sort ncarts) ncrash))))))
 
 ;; part1: (play inp) => [41 22]
 
@@ -117,8 +113,7 @@
 (defn play2 [i]
   (let [[roads carts] (parse-inp i)]
     (loop [carts (vec carts)]
-      (if (= 1 (count carts))
-        (ffirst carts)
-        (recur (cart-sort (move-carts2 roads carts)))))))
+      (if (= 1 (count carts)) (ffirst carts)
+          (recur (cart-sort (move-carts2 roads carts)))))))
 
 ;; part2: (play2 inp) => [84 90]
