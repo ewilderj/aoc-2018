@@ -3,7 +3,7 @@
             [clojure.set :as set] [clojure.spec.alpha :as s]
             [clojure.data.priority-map :refer [priority-map]]))
 
-(def inp (aoc/puzzle-lines "day15-ex2"))
+(def inp (aoc/puzzle-lines "day15-ex1"))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m] [k (f v)])))
@@ -58,10 +58,15 @@
     (and (= c \.) (not (creature-at? u [x y])))))
 
 (defn reachable
-  "In universe u, all the squares reachable in one step from [x y]"
-  [u [x y]]
-  (let [points (map (partial mapv + [x y]) '([0 1] [0 -1] [1 0] [-1 0]))]
-    (zipmap (filter (partial can-move-to? u) points) (repeat 1))))
+  "In universe u, all the squares reachable in one step from p"
+  [u p]
+  (let [points (map (partial mapv + p) '([0 1] [0 -1] [1 0] [-1 0]))]
+    (filter (partial can-move-to? u) points)))
+
+(defn reachable-scores
+  "In universe u, all the squares reachable in one step from p, mapped to their cost"
+  [u p]
+  (zipmap (reachable u p) (repeat 1)))
 
 (defn sort-creatures
   "Sort the creatures in universe u so they are in 'read-order"
@@ -73,10 +78,39 @@
               vec)))
 
 (defn viable-targets
-  "In universe u, which targets does the creature at [x y] have?"
-  [u [x y]]
+  "In universe u, which targets does the creature at point p have?"
+  [u p]
   (let [cm (into {} (u :creatures))
-        k (if (= (cm [x y]) \G) \E \G)]
-    (assert (contains? cm [x y]))
-    (filter #(= (cm %) k) (keys cm))))
+        k (if (= (cm p) \G) \E \G)]         ; figure out who's an enemy
+    (assert (contains? cm p))               ; error if this isn't a critter
+    (filter #(= (cm %) k) (keys cm))))      ; collect coords of enemies
 
+(defn adjacent-targets
+  "In universe u, all the squares adjacent to an enemy of the creature at point p"
+  [u p]
+  (->> (viable-targets u p)                 ; locate enemies
+       (map (partial reachable u))          ; find open squares next to them
+       (apply concat)))
+
+(defn decide-destination
+  "In universe u, for creature at p, locate the closest possible square
+  adjacent to an enemy."
+  [u p]
+  (let [distances (dijkstra p (partial reachable-scores u))
+        dests (set (adjacent-targets u p))
+        feasible (into (priority-map)
+                       (filter (fn [[k v]] (contains? dests k)) distances))]
+    (if (empty? feasible) nil
+        (let [d (apply min (vals feasible)) ; find the distance of the nearest
+              t (->> feasible
+                     (filter (fn [[k v]] (= d v)))
+                     (keys) (sort))]        ; find all that are at that distance
+          (first t)))))                     ; and take the first in sort order
+
+(defn delta-to-dest
+  "Given a creature at x y and destination p q, generate read-order [dx dy]"
+  [[x y] [p q]]
+  (cond
+    (not= x p) [(Integer/signum (- p x)) 0]
+    (not= y q) [0 (Integer/signum (- q y))]
+    :else [0 0]))
