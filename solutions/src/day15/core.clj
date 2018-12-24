@@ -3,7 +3,7 @@
             [clojure.set :as set] [clojure.spec.alpha :as s]
             [clojure.data.priority-map :refer [priority-map]]))
 
-(def inp (aoc/puzzle-lines "day15-ex1"))
+(def inp (aoc/puzzle-lines "day15-ex2"))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m] [k (f v)])))
@@ -57,7 +57,26 @@
   (if-let [c (get-in (u :maze) [y x])]
     (and (= c \.) (not (creature-at? u [x y])))))
 
-(defn neighbors [u [x y]]
+(defn reachable
+  "In universe u, all the squares reachable in one step from [x y]"
+  [u [x y]]
   (let [points (map (partial mapv + [x y]) '([0 1] [0 -1] [1 0] [-1 0]))]
     (zipmap (filter (partial can-move-to? u) points) (repeat 1))))
+
+(defn sort-creatures
+  "Sort the creatures in universe u so they are in 'read-order"
+  [u]
+  (assoc u :creatures
+         (->> (u :creatures)
+              (sort-by ffirst)
+              (sort-by (comp second first))
+              vec)))
+
+(defn viable-targets
+  "In universe u, which targets does the creature at [x y] have?"
+  [u [x y]]
+  (let [cm (into {} (u :creatures))
+        k (if (= (cm [x y]) \G) \E \G)]
+    (assert (contains? cm [x y]))
+    (filter #(= (cm %) k) (keys cm))))
 
