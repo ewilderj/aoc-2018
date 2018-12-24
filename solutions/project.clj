@@ -3,5 +3,6 @@
   :url "https://twitter.com/edd"
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/core.logic "0.8.11"]
+                 [org.clojure/data.priority-map "0.0.10"]
                  ]
   :repl {:dependencies [[org.clojure/tools.nrepl "0.2.12"]]})
