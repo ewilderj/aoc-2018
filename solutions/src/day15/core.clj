@@ -39,7 +39,9 @@
   "A map used for game state"
   [maze creatures] {:maze maze :creatures creatures})
 
-(defn read-order-comparator [[a b] [c d]]
+(defn read-order-comparator
+  "Comparator for maintaining the read order"
+  [[a b] [c d]]
   (if (= b d)
     (< a c)
     (< b d)))
@@ -123,6 +125,16 @@
           (first t)))))                         ; and take the first in sort order
 
 (defn delta-to-dest
+  "Given a creature at x y and destination p q, generate read-order [dx dy]"
+  [[x y] [p q]]
+  ;; read order is up, left, right, down
+  (cond
+    (< q y) [0 -1]
+    (not= x p) [(Integer/signum (- p x)) 0]
+    (> q y) [0 1]
+    :else [0 0]))
+
+(defn delta-to-dest-old
   "Given a creature at x y and destination p q, generate read-order [dx dy]"
   [[x y] [p q]]
   (cond
