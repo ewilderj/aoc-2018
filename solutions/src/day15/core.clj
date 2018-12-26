@@ -134,14 +134,6 @@
     (> q y) [0 1]
     :else [0 0]))
 
-(defn delta-to-dest-old
-  "Given a creature at x y and destination p q, generate read-order [dx dy]"
-  [[x y] [p q]]
-  (cond
-    (not= y q) [0 (Integer/signum (- q y))]
-    (not= x p) [(Integer/signum (- p x)) 0]
-    :else [0 0]))
-
 (defn hitpoint-table
   "Print out each creature and their hit points"
   [u]
