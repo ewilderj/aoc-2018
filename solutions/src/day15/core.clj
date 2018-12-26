@@ -181,8 +181,8 @@
         victim' (assoc-in victim [1] nhp)]
     (println "Attack! By" a v ":" attacker "on" victim "=>" victim')
     (if (<= nhp 0)
-      (assoc u :creatures (dissoc (u :creatures) v))
-      (assoc-in u [:creatures v] victim'))
+      (assoc u :creatures (dissoc (u :creatures) v))  ; creature is dead, remove
+      (assoc-in u [:creatures v] victim'))            ; else update hit points
   ))
 
 (defn move-coords
