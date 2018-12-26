@@ -39,6 +39,11 @@
   "A map used for game state"
   [maze creatures] {:maze maze :creatures creatures})
 
+(defn read-order-comparator [[a b] [c d]]
+  (if (= b d)
+    (< a c)
+    (< b d)))
+
 (defn parse-input
   "Process all puzzle lines from a vector of lines. Store creatures
   in a sorted map, which by default will preserve the read-order the
@@ -46,7 +51,8 @@
   [i]
   (let [s (map-indexed parse-line i)]
     (universe (vec (map first s))
-              (into (sorted-map) (map second s)))))
+              (into (sorted-map-by read-order-comparator)
+                    (map second s)))))
 
 (defn creature-at?
   "In universe u, is there a creature at [x y]?"
@@ -94,6 +100,13 @@
        (map (partial reachable u))           ; find open squares next to them
        (apply concat)))
 
+(defn sort-read-order
+  "Sort a coordinate list to read order"
+  [l]
+  (->> l
+       (sort-by first)
+       (sort-by second)))
+
 (defn decide-destination
   "In universe u, for creature at p, locate the closest possible square
   adjacent to an enemy."
@@ -103,18 +116,18 @@
         feasible (into (priority-map)
                        (filter (fn [[k v]] (contains? dests k)) distances))]
     (if (empty? feasible) nil
-        (let [d (apply min (vals feasible)) ; find the distance of the nearest
+        (let [d (apply min (vals feasible))     ; find the distance of the nearest
               t (->> feasible
                      (filter (fn [[k v]] (= d v)))
-                     (keys) (sort))]        ; find all that are at that distance
-          (first t)))))                     ; and take the first in sort order
+                     (keys) (sort-read-order))] ; find all that are at that distance
+          (first t)))))                         ; and take the first in sort order
 
 (defn delta-to-dest
   "Given a creature at x y and destination p q, generate read-order [dx dy]"
   [[x y] [p q]]
   (cond
-    (not= x p) [(Integer/signum (- p x)) 0]
     (not= y q) [0 (Integer/signum (- q y))]
+    (not= x p) [(Integer/signum (- p x)) 0]
     :else [0 0]))
 
 (defn hitpoint-table
@@ -151,5 +164,45 @@
         ;; lowest hit points first, then in read order
         c-by-hp (sort-by (comp second second)
                          (sort-by first candidates))]
-    (first c-by-hp)))
+    (ffirst c-by-hp)))
+
+(defn attack
+  "In universe u, aggressor at point a attacks the victim at point v"
+  [u a v]
+  (let [attacker (get-in u [:creatures a])
+        victim (get-in u [:creatures v])
+        attack-points (nth attacker 2)
+        hit-points (second victim)
+        nhp (- hit-points attack-points)
+        victim' (assoc-in victim [1] nhp)]
+    (println "Attack! By" a v ":" attacker "on" victim "=>" victim')
+    (if (<= nhp 0)
+      (assoc u :creatures (dissoc (u :creatures) v))
+      (assoc-in u [:creatures v] victim'))
+  ))
+
+(defn move-coords
+  "In universe u, return the coords of the next step a unit at p takes"
+  [u p]
+  (if-let [d (decide-destination u p)]
+    (mapv + p (delta-to-dest p d))
+    (assert p "nowhere to go")
+    ))
+
+(defn creature-move
+  "In universe u, play the turn for the creature at p"
+  [u p]
+  (if-let [enemy (what-to-attack u p)] 
+    (attack u p enemy)                         ; attack if we're near an enemy
+    (let [p' (move-coords u p)
+          nc (assoc (dissoc (u :creatures) p) p' (get-in u [:creatures p]))
+          u' (assoc u :creatures nc)
+          enemy'  (what-to-attack u' p')]
+      (if (nil? enemy')
+        u'
+        (attack u' p' enemy')
+      )
+    )
+  ))
+
 
