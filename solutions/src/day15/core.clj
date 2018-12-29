@@ -3,7 +3,7 @@
             [clojure.set :as set] [clojure.spec.alpha :as s]
             [clojure.data.priority-map :refer [priority-map]]))
 
-(def inp (aoc/puzzle-lines "day15-ex1"))
+(def inp (aoc/puzzle-lines "day15"))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m] [k (f v)])))
@@ -58,8 +58,7 @@
 
 (defn creature-at?
   "In universe u, is there a creature at [x y]?"
-  [u [x y]]
-  (contains? (u :creatures) [x y]))
+  [u [x y]] (contains? (u :creatures) [x y]))
 
 (defn can-move-to?
   "In universe u, is the position [x y] empty?"
@@ -68,7 +67,7 @@
     (and (= c \.) (not (creature-at? u [x y])))))
 
 (def adjacencies
-  "Deltas to adjacent squares, in read order"
+  "Deltas to adjacent squares, in read order (up, left, right, down)"
   '([0 -1] [-1 0] [1 0] [0 1]))
 
 (defn adjacent-points
@@ -77,13 +76,11 @@
 
 (defn reachable
   "In universe u, all the squares reachable in one step from p"
-  [u p]
-  (filter (partial can-move-to? u) (adjacent-points p)))
+  [u p] (filter (partial can-move-to? u) (adjacent-points p)))
 
 (defn reachable-scores
   "In universe u, all the squares reachable in one step from p, mapped to their cost"
-  [u p]
-  (zipmap (reachable u p) (repeat 1)))
+  [u p] (zipmap (reachable u p) (repeat 1)))
 
 (def enemy {\G \E, \E \G})
 
@@ -102,12 +99,11 @@
        (map (partial reachable u))           ; find open squares next to them
        (apply concat)))
 
-(defn sort-read-order
-  "Sort a coordinate list to read order"
-  [l]
-  (->> l
-       (sort-by first)
-       (sort-by second)))
+(def sort-read-order (comp (partial sort-by second) (partial sort-by first)))
+
+(defn move-by-delta
+  "Add a delta d to coordinate p"
+  [p d] (mapv + p d))
 
 (defn decide-destination
   "In universe u, for creature at p, locate the closest possible square
@@ -117,25 +113,29 @@
         dests (set (adjacent-targets u p))
         feasible (into (priority-map)
                        (filter (fn [[k v]] (contains? dests k)) distances))]
-    (if (empty? feasible) nil
-        (let [d (apply min (vals feasible))     ; find the distance of the nearest
-              t (->> feasible
-                     (filter (fn [[k v]] (= d v)))
-                     (keys) (sort-read-order))] ; find all that are at that distance
-          (first t)))))                         ; and take the first in sort order
 
-(defn delta-to-dest
-  "Given a creature at x y and destination p q, generate read-order [dx dy]"
-  [[x y] [p q]]
-  ;; read order is up, left, right, down
-  (cond
-    (< q y) [0 -1]
-    (not= x p) [(Integer/signum (- p x)) 0]
-    (> q y) [0 1]
-    :else [0 0]))
+    (if (seq feasible)
+      (let [d (apply min (vals feasible))     ; find the distance of the nearest
+            target (first (sort-read-order
+                           (map first (get (group-by val feasible) d))))
+
+            ;; now we have the target, compute how far every square is from it
+            target-distances (dijkstra target (partial reachable-scores u))
+            ;; consider every step we can take, in reading order
+            opts (filter (partial can-move-to? u)
+                         (map (partial move-by-delta p) adjacencies))
+            ;; further, consider only those reachable
+            opts' (filter #(contains? target-distances %) opts)]
+
+        (if (seq opts')                        ; if we still have options...
+          (let [dmap (zipmap opts' (map target-distances opts')) ; dist of each from target
+                s (apply min (vals dmap))] ; shortest distance
+
+            ;; find first square with the shortest distance, in read-order
+            (first (sort-read-order (map first (get (group-by val dmap) s))))))))))
 
 (defn hitpoint-table
-  "Print out each creature and their hit points"
+  "Describe each creature and their hit points"
   [u]
   (str/join "\n" (map str (u :creatures))))
 
@@ -145,8 +145,7 @@
   (str/join "\n" (for [y (range (count (u :maze)))]
     (apply str (for [x (range (count (first (u :maze))))]
       (if-let [c (get-in u [:creatures [x y] 0])]
-        c (get-in u [:maze y x]))
-      )))))
+        c (get-in u [:maze y x])))))))
 
 (defn pud
   "Debug function to inspect state"
@@ -164,11 +163,18 @@
                     (fn [[k v]]
                       (and (contains? splash-zone k)
                            (= ilk (first v)))) ; that are of enemy ilk!
-                    (u :creatures))
-        ;; lowest hit points first, then in read order
-        c-by-hp (sort-by (comp second second)
-                         (sort-by first candidates))]
-    (ffirst c-by-hp)))
+                    (u :creatures))]
+
+    (if (seq candidates)                       ; if we found any nearby enemies
+      (let [hit-points (comp second second)    ; helper for readability
+            lowest-hp (apply min (map hit-points candidates))]
+
+            (->> candidates
+                 (filter #(= lowest-hp (hit-points %)))
+                 (map first)
+                 (sort-read-order)
+                 (first))))))
+
 
 (defn attack
   "In universe u, aggressor at point a attacks the victim at point v"
@@ -179,34 +185,80 @@
         hit-points (second victim)
         nhp (- hit-points attack-points)
         victim' (assoc-in victim [1] nhp)]
-    (println "Attack! By" a v ":" attacker "on" victim "=>" victim')
+
     (if (<= nhp 0)
       (assoc u :creatures (dissoc (u :creatures) v))  ; creature is dead, remove
       (assoc-in u [:creatures v] victim'))            ; else update hit points
   ))
 
-(defn move-coords
-  "In universe u, return the coords of the next step a unit at p takes"
-  [u p]
-  (if-let [d (decide-destination u p)]
-    (mapv + p (delta-to-dest p d))
-    (assert p "nowhere to go")
-    ))
-
 (defn creature-move
   "In universe u, play the turn for the creature at p"
   [u p]
-  (if-let [enemy (what-to-attack u p)] 
-    (attack u p enemy)                         ; attack if we're near an enemy
-    (let [p' (move-coords u p)
-          nc (assoc (dissoc (u :creatures) p) p' (get-in u [:creatures p]))
-          u' (assoc u :creatures nc)
-          enemy'  (what-to-attack u' p')]
-      (if (nil? enemy')
-        u'
-        (attack u' p' enemy')
-      )
-    )
-  ))
+  (if-let [e (what-to-attack u p)]
+    (attack u p e)                             ; attack if we're near an enemy
+    (if-let [p' (decide-destination u p)]      ; if there's a move we can make
+      (let [nc (assoc (dissoc (u :creatures) p) p' (get-in u [:creatures p]))
+            u' (assoc u :creatures nc)         ; update creature position
+            e' (what-to-attack u' p')]         ; is there now an enemy near?
+        (if e' (attack u' p' e') u'))          ; yes, attack! no, send universe
+      u)))                                     ; no move available, no change
 
+(defn winner?
+  "True if one of the teams is extinct in universe u"
+  [u]
+  (< (count (frequencies (map first (vals (u :creatures))))) 2))
+
+(defn one-turn
+  "Play a turn in universe v"
+  [v]
+  (loop [creatures (keys (v :creatures))      ; will be sorted in read order
+         u v]                                 ; universe, will change after move
+      (if (empty? creatures)                  ; have we moved all creatures?
+        u                                     ; yes, return the universe
+        (if (winner? u)                       ; if no targets left, we're done
+          (assoc u :won true)                 ; send back universe in won state
+          (if (contains? (u :creatures) (first creatures)) ; check not dead yet
+            (recur (rest creatures) (creature-move u (first creatures)))
+            (recur (rest creatures) u))))))
+
+
+(defn play
+  "Play the game with input i, applying f to universe before running"
+  [universe]
+  (loop [u universe n 0]
+    ;; (print n ".") (flush)
+    (let [u' (one-turn u)]
+      (if (u' :won)
+        (let [v (reduce + (map second (vals (u' :creatures))))]
+          [(* n v) u'])
+        (recur u' (inc n))))))
+
+(defn part1 [] (first (play (parse-input inp)))) ; (part1) => 183300
+
+;; current bug is around turn 23
+;; delta to dest doesn't check if you're about to move to
+;; an empty square or not
+
+(defn set-elf-ap
+  [u ap]
+  (assoc u :creatures
+         (into (sorted-map-by read-order-comparator)
+               (map (fn [[k v]] {k (if (= \E (first v)) [\E 200 ap] v)})
+                    (u :creatures)))))
+
+(defn elf-count
+  [u] ((frequencies (map (comp first second) (u :creatures))) \E))
+
+(defn part2 [] ; (part2) => 40625
+  (let [u (parse-input inp)
+        num-elves (elf-count u)]
+    (println "Target number of elves is" num-elves)
+    (loop [eap 33] ; from previous runs I learned a good start
+      (println "Playing with AP" eap)
+      (let [[outcome u'] (play (set-elf-ap u eap))
+            ec (elf-count u')]
+        (println ec "elves survived, outcome" outcome)
+        (if (or (nil? ec) (< ec num-elves))
+          (recur (inc eap))
+          outcome)))))
 
