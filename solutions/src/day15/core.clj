@@ -105,6 +105,13 @@
   "Add a delta d to coordinate p"
   [p d] (mapv + p d))
 
+
+
+(defn first-point-in-read-order
+  "Helper function for sorting lists of [[p] v] by read-order, finding the first p"
+  [x]
+  (first (sort-read-order (map first x))))
+
 (defn decide-destination
   "In universe u, for creature at p, locate the closest possible square
   adjacent to an enemy."
@@ -116,8 +123,7 @@
 
     (if (seq feasible)
       (let [d (apply min (vals feasible))     ; find the distance of the nearest
-            target (first (sort-read-order
-                           (map first (get (group-by val feasible) d))))
+            target (first-point-in-read-order (get (group-by val feasible) d))
 
             ;; now we have the target, compute how far every square is from it
             target-distances (dijkstra target (partial reachable-scores u))
@@ -132,7 +138,7 @@
                 s (apply min (vals dmap))] ; shortest distance
 
             ;; find first square with the shortest distance, in read-order
-            (first (sort-read-order (map first (get (group-by val dmap) s))))))))))
+            (first-point-in-read-order (get (group-by val dmap) s))))))))
 
 (defn hitpoint-table
   "Describe each creature and their hit points"
@@ -169,12 +175,8 @@
       (let [hit-points (comp second second)    ; helper for readability
             lowest-hp (apply min (map hit-points candidates))]
 
-            (->> candidates
-                 (filter #(= lowest-hp (hit-points %)))
-                 (map first)
-                 (sort-read-order)
-                 (first))))))
-
+        (first-point-in-read-order
+         (filter #(= lowest-hp (hit-points %)) candidates))))))
 
 (defn attack
   "In universe u, aggressor at point a attacks the victim at point v"
@@ -238,6 +240,7 @@
 ;; part2
 
 (defn set-elf-ap
+  "In universe u, start every elf with attack points equal to ap"
   [u ap]
   (assoc u :creatures
          (into (sorted-map-by read-order-comparator)
@@ -245,6 +248,7 @@
                     (u :creatures)))))
 
 (defn elf-count
+  "How many elves in universe u, or nil if none"
   [u] ((frequencies (map (comp first second) (u :creatures))) \E))
 
 (defn part2 [] ; (part2) => 40625
