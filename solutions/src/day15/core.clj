@@ -235,9 +235,7 @@
 
 (defn part1 [] (first (play (parse-input inp)))) ; (part1) => 183300
 
-;; current bug is around turn 23
-;; delta to dest doesn't check if you're about to move to
-;; an empty square or not
+;; part2
 
 (defn set-elf-ap
   [u ap]
