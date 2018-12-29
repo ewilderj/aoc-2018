@@ -81,8 +81,6 @@
            (map count
                (map (partial apply which-ops) p1data)))))
 
-(defn get-opcode [before [opcode a b c] after] opcode)
-
 (defn find-key-with-one-opcode
   [m]
   (filter (fn [[k v]] (= (count v) 1)) m))
