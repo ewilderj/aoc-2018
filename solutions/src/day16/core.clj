@@ -26,6 +26,11 @@
        (map (partial map to-ints))
        ))
 
+(def p2data
+  "Parse the instructions for part 2"
+  (map to-ints (subvec inp (+ 2 (* (count p1data) 4))))
+  )
+
 (defmacro defop
   "Defines an op code. f should expect args a, b, c"
   [n f]
@@ -56,23 +61,60 @@
               gtir, gtri, gtrr,
               eqir, eqri, eqrr])
 
+(defn fn-name
+  [f]
+  (first (re-find #"(?<=\$)([^@]+)(?=@)" (str f))))
+
 (defn which-ops
   "Return the ops that match 'after' after application"
   [before [opcode a b c] after]
   ;; (println before [opcode a b c] after)
   (map first
        (filter (fn [[k v]] (= v after))
-               (zipmap all-ops (map #(% before a b c) all-ops)))))
+               (zipmap (map #(fn-name %) all-ops)
+                       (map #(% before a b c) all-ops)))))
 
 
-(defn part1 []
+(defn part1 [] ; => 570
   (count
    (filter #(>= % 3)
            (map count
                (map (partial apply which-ops) p1data)))))
 
-(defn part2 []
-   (filter #(= (count %) 1)
-           (map (partial apply which-ops) p1data)))
+(defn get-opcode [before [opcode a b c] after] opcode)
 
+(defn find-key-with-one-opcode
+  [m]
+  (filter (fn [[k v]] (= (count v) 1)) m))
 
+(defn remove-opcode
+  [m op]
+  (reduce (fn [r [k v]] (assoc r k (set (remove #{op} v)))) {} m))
+
+(defn compute-instruction-set
+  []
+  (let [ops-and-matches
+        ;; for each example, compute candidate instrs for each op code
+        (partition 2 (interleave (map (comp first second) p1data)
+                                 (map (partial apply which-ops) p1data)))
+        ;; summarize these findings into a set for each opcode
+        summary (reduce (fn [r el]
+                          (assoc r (first el) (set/union (get r (first el) #{})
+                                                         (set (second el)))))
+                        {} ops-and-matches)
+        ]
+    ;; when an opcode has only one candidate, we assign it, remove, and repeat
+    (loop [s summary r {}]
+      (if (empty? s) r
+          (if-let [[[k v]] (find-key-with-one-opcode s)]
+            (recur (remove-opcode (dissoc s k) (first v))
+                   (assoc r k (resolve (symbol (first v))))))))))
+
+(defn part2 ; => 503
+  []
+  (let [iss (compute-instruction-set)]
+    (loop [r [0 0 0 0] i p2data]
+      (if (empty? i) (first r)
+          (let [[op a b c] (first i)
+                ifn (iss op)]
+            (recur (ifn r a b c) (rest i)))))))
