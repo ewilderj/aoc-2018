@@ -61,19 +61,12 @@
               gtir, gtri, gtrr,
               eqir, eqri, eqrr])
 
-(defn fn-name
-  [f]
-  (first (re-find #"(?<=\$)([^@]+)(?=@)" (str f))))
-
 (defn which-ops
   "Return the ops that match 'after' after application"
   [before [opcode a b c] after]
-  ;; (println before [opcode a b c] after)
   (map first
        (filter (fn [[k v]] (= v after))
-               (zipmap (map #(fn-name %) all-ops)
-                       (map #(% before a b c) all-ops)))))
-
+               (zipmap all-ops (map #(% before a b c) all-ops)))))
 
 (defn part1 [] ; => 570
   (count
@@ -106,7 +99,7 @@
       (if (empty? s) r
           (if-let [[[k v]] (find-key-with-one-opcode s)]
             (recur (remove-opcode (dissoc s k) (first v))
-                   (assoc r k (resolve (symbol (first v))))))))))
+                   (assoc r k (first v))))))))
 
 (defn part2 ; => 503
   []
