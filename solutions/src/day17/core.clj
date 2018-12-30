@@ -38,8 +38,8 @@
   (get maze point \.))
 
 (defn traversable?
-  [u p]
-  (contains? #{\. \|} (maze-cell u p)))
+  [m p]
+  (contains? #{\. \|} (maze-cell m p)))
 
 (defn bounds
   "Returns min-x, max-x and max-y of the maze. min-y is always 0"
@@ -65,3 +65,44 @@
                              (maze-cell maze [x y])))))))
 
 (defn pud [u] (print (render-universe u)))
+
+(defn walk-down
+  "Walks down from point p until it hits an obstacle. Returns new
+  universe and true if there's an obstacle, false if ran out of bounds."
+  [u p]
+  (let [max-y (u :max-y) x (first p)]
+    (loop [m (u :maze) y (second p)]
+      (cond
+        (>= y max-y) [(assoc u :maze m) false] ;; ran out of space
+        (traversable? m [x y]) (recur (assoc m [x y] \|) (inc y))
+        :else [(assoc u :maze m) true]              ;; hit obstacle 
+        ))))
+
+(defn walk-horiz
+  "Walks across from point p in direction dx until it hits a gap underneath
+  or it hits an obstacle. Returns terminating coord, and true if gap."
+  [u p dx]
+  (let [m (u :maze) y (second p)]
+    (loop [x (first p)]
+      (cond
+        (not (traversable? m [x y])) ;; when there's an obstacle
+        [[(- x dx) y] false]         ;; previous point is the edge
+        (traversable? m [x (inc y)]) ;; when there's a gap
+        [[x y] true]
+        :else                        ;; let's keep on walking
+        (recur (+ x dx))))))
+
+(defn explore-horiz
+  "Explores horizontally from starting point and returns any
+  new gaps it finds for further vertical exploration."
+  [u p]
+  (let [[[lx ly] left-gap] (walk-horiz u p -1)
+        [[rx ry] right-gap] (walk-horiz u p 1)
+        m (u :maze)]
+    (if (false? (or left-gap right-gap))              ;; obstacles both sides
+      [(assoc u :maze (draw-horiz m \~ ly lx rx)) []] ;; draw water
+      ;; otherwise, there's a gap one or both sides
+      (let [u' (assoc u :maze (draw-horiz m \| ly lx rx))
+            np (filter identity [(if left-gap [lx ly])
+                                 (if right-gap [rx ry])])]
+        [u' np]))))
