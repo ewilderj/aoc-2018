@@ -6,21 +6,30 @@
 (def inp (aoc/puzzle-lines "day17"))
 (def exinp (aoc/puzzle-lines "day17-ex"))
 
+(defn draw-cell
+  ([m c p] (draw-cell m c p false))
+  ([m c p check]
+   (if (and check (contains? #{\~ \#} (get m (vec p))))
+     (assert false "oh noooo")
+     (assoc m (vec p) c))
+  ))
+
 (defn draw-vert
   [u c x y1 y2]
   (let [cc (partition 2 (interleave
                          (partition 2 (interleave (repeat x)
                                                   (range y1 (inc y2))))
                          (repeat c)))]
-    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)))
+    (reduce (fn [r [p c]] (draw-cell r c p)) u cc)))
 
 (defn draw-horiz
-  [u c y x1 x2]
+  ([u c y x1 x2] (draw-horiz u c y x1 x2 false))
+  ([u c y x1 x2 check]
   (let [cc (partition 2 (interleave
                          (partition 2 (interleave (range x1 (inc x2))
                                                   (repeat y)))
                          (repeat c)))]
-    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)))
+    (reduce (fn [r [p c]] (draw-cell r c p check)) u cc))))
 
 (defn make-maze
   "Turn a vector of input lines into the maze"
@@ -46,49 +55,52 @@
   [maze]
   (vector (apply min (map ffirst maze))
           (apply max (map ffirst maze))
+          (apply min (map (comp second first) maze))
           (apply max (map (comp second first) maze))))
 
 (defn make-universe
   [src]
   (let [m (make-maze src)
-        [x1 x2 y] (bounds m)]
-    {:maze (assoc m [500 0] \+)
-     :min-x x1 :max-x x2 :max-y y}))
+        [x1 x2 y1 y2] (bounds m)]
+    {:maze m ;; (assoc m [500 0] \+)
+     :min-x x1 :max-x x2 :min-y y1 :max-y y2}))
 
 (defn render-universe
   [u]
   (let [maze (u :maze)
-        [x1 x2 yy] (map u [:min-x :max-x :max-y])]
+        [x1 x2 y1 y2] (map u [:min-x :max-x :min-y :max-y])]
     (str/join "\n"
-              (for [y (range 0 (inc yy))]
+              (for [y (range y1 (inc y2))]
                 (apply str (for [x (range x1 (inc x2))]
                              (maze-cell maze [x y])))))))
 
-(defn pud [u] (print (render-universe u)))
+(defn pud [u] (println (render-universe u)))
 
 (defn walk-down
   "Walks down from point p until it hits an obstacle. Returns new
-  universe and true if there's an obstacle, false if ran out of bounds."
+  universe and end pt if there's an obstacle, nil if ran out of bounds."
   [u p]
   (let [max-y (u :max-y) x (first p)]
     (loop [m (u :maze) y (second p)]
       (cond
-        (>= y max-y) [(assoc u :maze m) false] ;; ran out of space
+        (> y max-y) [(assoc u :maze m) nil] ;; ran out of space
         (traversable? m [x y]) (recur (assoc m [x y] \|) (inc y))
-        :else [(assoc u :maze m) true]              ;; hit obstacle 
+        :else [(assoc u :maze m) [x (dec y)]]   ;; hit obstacle, report stop
         ))))
 
 (defn walk-horiz
   "Walks across from point p in direction dx until it hits a gap underneath
   or it hits an obstacle. Returns terminating coord, and true if gap."
   [u p dx]
-  (let [m (u :maze) y (second p)]
+  (let [m (u :maze) y (second p) min-x (u :min-x) max-x (u :max-x)]
     (loop [x (first p)]
       (cond
         (not (traversable? m [x y])) ;; when there's an obstacle
         [[(- x dx) y] false]         ;; previous point is the edge
         (traversable? m [x (inc y)]) ;; when there's a gap
         [[x y] true]
+        ;; (if (< dx 0) (= x min-x) (= x max-x)) ;; no gap, and if we've hit the map boundary
+        ;; [[x y] false]
         :else                        ;; let's keep on walking
         (recur (+ x dx))))))
 
@@ -100,9 +112,43 @@
         [[rx ry] right-gap] (walk-horiz u p 1)
         m (u :maze)]
     (if (false? (or left-gap right-gap))              ;; obstacles both sides
-      [(assoc u :maze (draw-horiz m \~ ly lx rx)) []] ;; draw water
+      [(assoc u :maze (draw-horiz m \~ ly lx rx true)) []] ;; draw water, checking not overdrawing 
       ;; otherwise, there's a gap one or both sides
-      (let [u' (assoc u :maze (draw-horiz m \| ly lx rx))
-            np (filter identity [(if left-gap [lx ly])
-                                 (if right-gap [rx ry])])]
+      (let [u' (assoc u :maze (draw-horiz m \| ly lx rx true)) ;; draw path, checking not overdrawing
+            np (vec (filter identity [(if left-gap [lx ly])
+                                 (if right-gap [rx ry])]))]
         [u' np]))))
+
+(defn walk
+  ([u] (walk u [500 1]))
+  ([u p]
+   ;; (pud u)
+   (loop [u u]
+     (let [blacklist (get u :blacklist #{})]
+       (if (contains? blacklist p) (do (println "blacklisted" p) u)  ;; don't search a blacklisted destination
+           (let [[u' cpoint] (walk-down u p)]
+             ;; (println "walked down from" p "stopped at" cpoint "blacklist" blacklist)
+             (cond
+               (nil? cpoint) (assoc u' :blacklist (conj blacklist p))             ;; hit the end of the map, return new univers
+               (contains? blacklist cpoint) (assoc u' :blacklist (conj blacklist p)) ;; got to a blacklisted point, ripple up
+               (< (second cpoint) (second p)) (assoc u' :restart true)   ;; flooded our start point, we're done
+               :else ;; explore to the left and right
+               (let [[u'' nsts] (explore-horiz u' cpoint)]
+                 ;;; (println "nsts" nsts)
+                 (if (empty? nsts)
+                   (recur u'')         ;; no gaps, start again from the previous point
+                   (let [n2 (remove #(contains? blacklist %) nsts)]
+                     (if (empty? n2) ;; all my options from here are blacklisted, so blacklist my start point
+                       (assoc u'' :blacklist (conj blacklist cpoint)) 
+                       (let [u3 (reduce (fn [r n] (walk r n)) u'' n2)] ;; else walk my nexts
+                         (if (u3 :restart)       ;; means we hit a snag that means we ought to retry
+                           (do
+                             ;; (println "restarting at" cpoint)
+                             (recur (dissoc u3 :restart))
+                             )
+                           u3) ;; if not restart, just return
+                         ))))))))))))
+
+(defn part1 [i]
+  (count (filter #{\~ \|} (render-universe (walk (make-universe i))))))
+
