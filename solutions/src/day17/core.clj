@@ -9,10 +9,9 @@
 (defn draw-cell
   ([m c p] (draw-cell m c p false))
   ([m c p check]
-   (if (and check (contains? #{\~ \#} (get m (vec p))))
+   (if (and check (contains? #{\~ \#} (get m (vec p)))) ;; debugging measure in case of overdrawing
      (assert false "oh noooo")
-     (assoc m (vec p) c))
-  ))
+     (assoc m (vec p) c))))
 
 (defn draw-vert
   [u c x y1 y2]
@@ -61,14 +60,14 @@
 (defn make-universe
   [src]
   (let [m (make-maze src)
-        [x1 x2 y1 y2] (bounds m)]
-    {:maze m ;; (assoc m [500 0] \+)
-     :min-x x1 :max-x x2 :min-y y1 :max-y y2}))
+        [_ _ y1 y2] (bounds m)]
+    {:maze m :min-y y1 :max-y y2}))
 
 (defn render-universe
   [u]
   (let [maze (u :maze)
-        [x1 x2 y1 y2] (map u [:min-x :max-x :min-y :max-y])]
+        [x1 x2 _ _] (bounds maze)                   ;; any x is good, so don't use original bounds
+        [y1 y2] (map u [:min-y :max-y])]            ;; but ys are limited to the scan boundary
     (str/join "\n"
               (for [y (range y1 (inc y2))]
                 (apply str (for [x (range x1 (inc x2))]
@@ -83,24 +82,22 @@
   (let [max-y (u :max-y) x (first p)]
     (loop [m (u :maze) y (second p)]
       (cond
-        (> y max-y) [(assoc u :maze m) nil] ;; ran out of space
-        (traversable? m [x y]) (recur (assoc m [x y] \|) (inc y))
-        :else [(assoc u :maze m) [x (dec y)]]   ;; hit obstacle, report stop
+        (> y max-y) [(assoc u :maze m) nil]                       ;; ran out of map
+        (traversable? m [x y]) (recur (assoc m [x y] \|) (inc y)) ;; ok? keep going down
+        :else [(assoc u :maze m) [x (dec y)]]                     ;; hit obstacle, report last good coords
         ))))
 
 (defn walk-horiz
   "Walks across from point p in direction dx until it hits a gap underneath
   or it hits an obstacle. Returns terminating coord, and true if gap."
   [u p dx]
-  (let [m (u :maze) y (second p) min-x (u :min-x) max-x (u :max-x)]
+  (let [m (u :maze) y (second p)]
     (loop [x (first p)]
       (cond
         (not (traversable? m [x y])) ;; when there's an obstacle
         [[(- x dx) y] false]         ;; previous point is the edge
         (traversable? m [x (inc y)]) ;; when there's a gap
         [[x y] true]
-        ;; (if (< dx 0) (= x min-x) (= x max-x)) ;; no gap, and if we've hit the map boundary
-        ;; [[x y] false]
         :else                        ;; let's keep on walking
         (recur (+ x dx))))))
 
@@ -111,44 +108,39 @@
   (let [[[lx ly] left-gap] (walk-horiz u p -1)
         [[rx ry] right-gap] (walk-horiz u p 1)
         m (u :maze)]
-    (if (false? (or left-gap right-gap))              ;; obstacles both sides
-      [(assoc u :maze (draw-horiz m \~ ly lx rx true)) []] ;; draw water, checking not overdrawing 
-      ;; otherwise, there's a gap one or both sides
+    (if (false? (or left-gap right-gap))                       ;; obstacles both sides
+      [(assoc u :maze (draw-horiz m \~ ly lx rx true)) []]     ;; draw water, checking not overdrawing 
+                                                               ;; otherwise, there's a gap one or both sides
       (let [u' (assoc u :maze (draw-horiz m \| ly lx rx true)) ;; draw path, checking not overdrawing
             np (vec (filter identity [(if left-gap [lx ly])
                                  (if right-gap [rx ry])]))]
         [u' np]))))
 
 (defn walk
-  ([u] (walk u [500 1]))
+  ([u] (walk u [500 0])) ;; start at spring
   ([u p]
    ;; (pud u)
    (loop [u u]
      (let [blacklist (get u :blacklist #{})]
-       (if (contains? blacklist p) (do (println "blacklisted" p) u)  ;; don't search a blacklisted destination
-           (let [[u' cpoint] (walk-down u p)]
-             ;; (println "walked down from" p "stopped at" cpoint "blacklist" blacklist)
-             (cond
-               (nil? cpoint) (assoc u' :blacklist (conj blacklist p))             ;; hit the end of the map, return new univers
-               (contains? blacklist cpoint) (assoc u' :blacklist (conj blacklist p)) ;; got to a blacklisted point, ripple up
-               (< (second cpoint) (second p)) (assoc u' :restart true)   ;; flooded our start point, we're done
-               :else ;; explore to the left and right
-               (let [[u'' nsts] (explore-horiz u' cpoint)]
-                 ;;; (println "nsts" nsts)
-                 (if (empty? nsts)
-                   (recur u'')         ;; no gaps, start again from the previous point
-                   (let [n2 (remove #(contains? blacklist %) nsts)]
-                     (if (empty? n2) ;; all my options from here are blacklisted, so blacklist my start point
-                       (assoc u'' :blacklist (conj blacklist cpoint)) 
-                       (let [u3 (reduce (fn [r n] (walk r n)) u'' n2)] ;; else walk my nexts
-                         (if (u3 :restart)       ;; means we hit a snag that means we ought to retry
-                           (do
-                             ;; (println "restarting at" cpoint)
-                             (recur (dissoc u3 :restart))
-                             )
-                           u3) ;; if not restart, just return
-                         ))))))))))))
+       (let [[u' cpoint] (walk-down u p)]
+         (cond
+           (nil? cpoint) (assoc u' :blacklist (conj blacklist p))    ;; hit the end of the map, return new univers
+           (contains? blacklist cpoint) (assoc u' :blacklist (conj blacklist p)) ;; got to a blacklisted point, ripple up
+           (< (second cpoint) (second p)) (assoc u' :restart true)   ;; flooded our start point, retry from parent
+           :else ;; explore to the left and right
+           (let [[u'' nsts] (explore-horiz u' cpoint)]               ;; fill water, find any nexts (gaps)
+             (if (empty? nsts)
+               (recur u'')                                           ;; no gaps, start again from the previous point
+               (let [n2 (remove #(contains? blacklist %) nsts)]
+                 (if (empty? n2)            ;; all my options from here are blacklisted, so blacklist my start point
+                   (assoc u'' :blacklist (conj blacklist cpoint)) 
+                   (let [u3 (reduce (fn [r n] (walk r n)) u'' n2)]   ;; else walk my nexts
+                     (if (u3 :restart)                               ;; retry (previous start point got flooded)
+                       (recur (dissoc u3 :restart))
+                       u3))))))))))))                               ;; if not restart, just return
 
 (defn part1 [i]
   (count (filter #{\~ \|} (render-universe (walk (make-universe i))))))
 
+(defn part2 [i]
+  (count (filter #{\~} (render-universe (walk (make-universe i))))))
