@@ -12,8 +12,7 @@
                          (partition 2 (interleave (repeat x)
                                                   (range y1 (inc y2))))
                          (repeat c)))]
-    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)
-  ))
+    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)))
 
 (defn draw-horiz
   [u c y x1 x2]
@@ -21,8 +20,7 @@
                          (partition 2 (interleave (range x1 (inc x2))
                                                   (repeat y)))
                          (repeat c)))]
-    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)
-    ))
+    (reduce (fn [r [p c]] (assoc r (vec p) c)) u cc)))
 
 (defn make-universe
   "Turn a vector of input lines into the universe"
@@ -33,8 +31,8 @@
         (let [[j a b] (map #(Integer. %) (re-seq #"\d+" (first i)))]
           (if (= (ffirst i) \x)
             (recur (rest i) (draw-vert u \# j a b))
-            (recur (rest i) (draw-horiz u \# j a b))
-            )
-          )
-      )
-  ))
+            (recur (rest i) (draw-horiz u \# j a b)))))))
+
+(defn traversable?
+  [u p]
+  (contains? #{\. \|} (get u p \.)))
