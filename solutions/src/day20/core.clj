@@ -89,7 +89,6 @@
 (defn fatcat
   "Flattens a list but leaves vectors intact."
   [x]
-  ;; (println "fatcat" (str x) (type x))
   (let [f (fn [x] (and (not (vector? x)) (sequential? x)))
         r (filter (complement f)
                   (tree-seq f identity x))]
@@ -165,3 +164,80 @@
 ;; in the (remove-loops inp) then we should expect
 ;; significantly more loops. clearly something is collapsing
 ;; routes.
+
+;; second exploration udnerstands the problem fine
+;; by figuring out how many stops there are after
+;; we reach 1000 steps. however that's 77023 which
+;; means we actualyl need to keep track of rooms to
+;; avoid counting for rooms we see a lot - the problem
+;; states the shortest path. looks like the right answer
+;; is ~5000-8000 from other people's experience.
+
+;; third try
+
+(def delta {\N [0 -1] \S [0 1] \E [1 0] \W [-1 0]})
+(defn move [p d] (mapv + p (delta d)))
+
+(def BIGNUM Integer/MAX_VALUE)
+
+(defn visit-room [rooms p d]
+  (if (< d (get rooms p BIGNUM)) (assoc rooms p d) rooms))
+
+(defn accumulate [a p d]
+  (conj (pop a) (conj (peek a) [p d])))
+
+(defn update-rooms [rooms new-rooms]
+  (let [ks (distinct (concat (keys rooms) (keys new-rooms)))]
+    (reduce (fn [rs k] (visit-room rs k (get new-rooms k BIGNUM))) rooms ks)
+    )
+  )
+
+(defn play
+  "Run the simulation - s is the regexp string
+  rooms is the original state of rooms and the distance to them
+  h is a history of state when a choice is encountered
+  p is the starting position
+  d is the starting distance
+  a is a history of accumulated choices"
+  ([s] (play (remove-loops s) {[0 0] 0} [] [0 0] 0 []))
+  ([s rooms h p d a]
+   (loop [s s rooms rooms h h p p d d a a]
+     (if (empty? s) rooms
+         (let [i (first s) s' (rest s)]
+           (cond
+             (#{\N \E \W \S} i) ;; direction
+             (let [p' (move p i)
+                   d' (inc d)
+                   rooms' (visit-room rooms p' d')]
+               (recur s' rooms' h p' d' a))
+
+             (= i \() ;; open choice
+             ;; remember starting point, start a fresh accumulator
+             (recur s' rooms (conj h [p d]) p d (conj a []))
+
+             (= i \|) ;; choice delimiter
+             ;; push our end state into the accumulator
+             ;; then restart again with the start state
+             (let [[p' d'] (peek h)
+                   a' (accumulate a p d)]
+               ;; (println "Added choice" a')
+               (recur s' rooms h p' d' a'))
+
+             (= i \)) ;; close choice
+             ;; add final choice
+             ;; for every state in the accumulator
+             ;; play out how it might end with that state
+             ;; then pop off the starting point
+             (let [a' (accumulate a p d)]
+               (loop [sa (peek a') rooms' rooms]
+                 (if (empty? sa) rooms'
+                     (let [[sp sd] (first sa)]
+                       ;;(println "following choice" (first sa) s')
+                     (recur (rest sa)
+                            (play s' rooms'
+                                  (pop h) sp sd (pop a')))
+                     )
+               )))
+             )
+           )
+         ))))
