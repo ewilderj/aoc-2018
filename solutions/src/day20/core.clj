@@ -183,8 +183,8 @@
 (defn visit-room [rooms p d]
   (if (< d (get rooms p BIGNUM)) (assoc rooms p d) rooms))
 
-(defn accumulate [a p d]
-  (conj (pop a) (conj (peek a) [p d])))
+(defn accumulate [a p]
+  (conj (pop a) (conj (peek a) p)))
 
 (defn update-rooms [rooms new-rooms]
   (let [ks (distinct (concat (keys rooms) (keys new-rooms)))]
@@ -199,45 +199,57 @@
   p is the starting position
   d is the starting distance
   a is a history of accumulated choices"
-  ([s] (play (remove-loops s) {[0 0] 0} [] [0 0] 0 []))
-  ([s rooms h p d a]
-   (loop [s s rooms rooms h h p p d d a a]
-     (if (empty? s) rooms
+  ([s] (play (remove-loops s) {[0 0] 0} [] [0 0] [] {}))
+  ([s rooms h p a]
+   (loop [s s rooms rooms h h p p a a seen seen]
+     (if (or (empty? s) (seen [p s])) rooms ;; avoid repeating
          (let [i (first s) s' (rest s)]
            (cond
              (#{\N \E \W \S} i) ;; direction
              (let [p' (move p i)
-                   d' (inc d)
-                   rooms' (visit-room rooms p' d')]
-               (recur s' rooms' h p' d' a))
+                   rooms' (visit-room rooms p' (inc (rooms p)))]
+               (recur s' rooms' h p' a (assoc seen [p s] true)))
 
              (= i \() ;; open choice
              ;; remember starting point, start a fresh accumulator
-             (recur s' rooms (conj h [p d]) p d (conj a []))
+             (recur s' rooms (conj h p) p (conj a []) seen)
 
              (= i \|) ;; choice delimiter
              ;; push our end state into the accumulator
              ;; then restart again with the start state
-             (let [[p' d'] (peek h)
-                   a' (accumulate a p d)]
+             (let [p' (peek h)
+                   a' (accumulate a p)]
                ;; (println "Added choice" a')
-               (recur s' rooms h p' d' a'))
+               (recur s' rooms h p' a' seen))
 
-             (= i \)) ;; close choice
-             ;; add final choice
-             ;; for every state in the accumulator
-             ;; play out how it might end with that state
-             ;; then pop off the starting point
-             (let [a' (accumulate a p d)]
-               (loop [sa (peek a') rooms' rooms]
-                 (if (empty? sa) rooms'
-                     (let [[sp sd] (first sa)]
-                       ;;(println "following choice" (first sa) s')
-                     (recur (rest sa)
-                            (play s' rooms'
-                                  (pop h) sp sd (pop a')))
+             (= i \))
+             ;; add final choice, and then...
+             ;; for every ending position in the accumulator
+             ;; play out how it might end from there
+             (let [a' (accumulate a p)]
+               (recur s' rooms (pop h) (peek h) (pop a') seen)
                      )
-               )))
-             )
            )
-         ))))
+         )))))
+
+
+
+;; (let [a' (accumulate a p)]
+;;   (loop [sa (peek a') rooms' rooms]
+;;     (if (empty? sa) rooms'
+;;         (let [sp (first sa)]
+;;           (recur (rest sa)
+;;                  (play s' rooms'
+;;                        (pop h) sp (pop a') seen))
+;;           )
+;;         )))
+
+
+
+;; (let [a' (accumulate a p)]
+;;   (recur s' rooms
+;;          (pop h) (peek h) (pop a'))
+;;   )
+
+
+;; we're looking for 8528
